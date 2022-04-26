@@ -161,7 +161,7 @@ struct DnsHeader {
     response: bool,
     result_code: ResultCode,
     checking_disabled: bool,
-    authed_data: bool,
+    authenticated_data: bool,
     z: bool,
     recursion_available: bool,
     questions: u16,
@@ -181,7 +181,7 @@ impl DnsHeader {
             response: false,
             result_code: ResultCode::NOERROR,
             checking_disabled: false,
-            authed_data: false,
+            authenticated_data: false,
             z: false,
             recursion_available: false,
             questions: 0,
@@ -205,7 +205,7 @@ impl DnsHeader {
         self.response = (a & (1 << 7)) > 0;
         self.result_code = ResultCode::from(b & 0x0F);
         self.checking_disabled = (b & (1 << 4)) > 0;
-        self.authed_data = (b & (1 << 5)) > 0;
+        self.authenticated_data = (b & (1 << 5)) > 0;
         self.z = (b & (1 << 6)) > 0;
         self.recursion_available = (b & (1 << 7)) > 0;
         self.questions = buffer.read_u16()?;
