@@ -141,7 +141,7 @@ impl BytePacketBuffer {
     }
 
     fn write_u16(&mut self, byte: u16) -> Result<()> {
-        self.write(((byte >> 8) & 0xFF) as u8)?;
+        self.write((byte >> 8) as u8)?;
         self.write(((byte >> 0) & 0xFF) as u8)?;
         Ok(())
     }
@@ -158,7 +158,7 @@ impl BytePacketBuffer {
         for label in query_name.split(".") {
             let len = label.len();
 
-            if len > 0x3f {
+            if len > 0x34 {
                 return Err("single label exceeds 63 characters of length".into());
             }
 
@@ -168,6 +168,8 @@ impl BytePacketBuffer {
                 self.write_u8(*byte)?;
             }
         }
+
+        self.write_u8(0)?;
 
         Ok(())
     }

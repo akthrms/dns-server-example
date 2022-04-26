@@ -5,7 +5,7 @@
 ```
 $ cargo run
 DnsHeader {
-    id: 64379,
+    id: 6666,
     recursion_desired: true,
     truncated_message: false,
     authoritative_answer: false,
@@ -27,7 +27,7 @@ DnsQuestion {
 }
 A {
     domain: "google.com",
-    address: 172.217.161.206,
-    ttl: 94,
+    address: 172.217.25.174,
+    ttl: 300,
 }
 ```
