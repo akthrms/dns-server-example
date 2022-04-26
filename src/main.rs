@@ -1,6 +1,7 @@
 use std::convert::From;
+use std::fs::File;
+use std::io::Read;
 use std::net::Ipv4Addr;
-use std::{fs::File, io::Read};
 
 type Error = Box<dyn std::error::Error>;
 
