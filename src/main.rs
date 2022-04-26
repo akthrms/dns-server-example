@@ -1,7 +1,5 @@
 use std::convert::From;
-use std::fs::File;
-use std::io::Read;
-use std::net::Ipv4Addr;
+use std::net::{Ipv4Addr, UdpSocket};
 
 type Error = Box<dyn std::error::Error>;
 
@@ -126,6 +124,53 @@ impl BytePacketBuffer {
 
         Ok(())
     }
+
+    fn write(&mut self, byte: u8) -> Result<()> {
+        if self.position >= 512 {
+            return Err("end of buffer".into());
+        }
+
+        self.buffer[self.position] = byte;
+        self.position += 1;
+        Ok(())
+    }
+
+    fn write_u8(&mut self, byte: u8) -> Result<()> {
+        self.write(byte)?;
+        Ok(())
+    }
+
+    fn write_u16(&mut self, byte: u16) -> Result<()> {
+        self.write(((byte >> 8) & 0xFF) as u8)?;
+        self.write(((byte >> 0) & 0xFF) as u8)?;
+        Ok(())
+    }
+
+    fn write_u32(&mut self, byte: u32) -> Result<()> {
+        self.write(((byte >> 24) & 0xFF) as u8)?;
+        self.write(((byte >> 16) & 0xFF) as u8)?;
+        self.write(((byte >> 8) & 0xFF) as u8)?;
+        self.write(((byte >> 0) & 0xFF) as u8)?;
+        Ok(())
+    }
+
+    fn write_query_name(&mut self, query_name: &str) -> Result<()> {
+        for label in query_name.split(".") {
+            let len = label.len();
+
+            if len > 0x3f {
+                return Err("single label exceeds 63 characters of length".into());
+            }
+
+            self.write_u8(len as u8)?;
+
+            for byte in label.as_bytes() {
+                self.write_u8(*byte)?;
+            }
+        }
+
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -215,6 +260,33 @@ impl DnsHeader {
 
         Ok(())
     }
+
+    fn write(&self, buffer: &mut BytePacketBuffer) -> Result<()> {
+        buffer.write_u16(self.id)?;
+
+        buffer.write_u8(
+            (self.recursion_desired as u8)
+                | ((self.truncated_message as u8) << 1)
+                | ((self.authoritative_answer as u8) << 2)
+                | (self.operation_code << 3)
+                | ((self.response as u8) << 7) as u8,
+        )?;
+
+        buffer.write_u8(
+            (self.result_code as u8)
+                | ((self.checking_disabled as u8) << 4)
+                | ((self.authenticated_data as u8) << 5)
+                | ((self.z as u8) << 6)
+                | ((self.recursion_available as u8) << 7),
+        )?;
+
+        buffer.write_u16(self.questions)?;
+        buffer.write_u16(self.answers)?;
+        buffer.write_u16(self.authoritative_entries)?;
+        buffer.write_u16(self.resource_entries)?;
+
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -228,6 +300,15 @@ impl From<u16> for QueryType {
         match num {
             1 => QueryType::A,
             _ => QueryType::UNKNOWN(num),
+        }
+    }
+}
+
+impl Into<u16> for QueryType {
+    fn into(self) -> u16 {
+        match self {
+            QueryType::A => 1,
+            QueryType::UNKNOWN(num) => num,
         }
     }
 }
@@ -247,6 +328,15 @@ impl DnsQuestion {
         buffer.read_query_name(&mut self.name)?;
         self.query_type = QueryType::from(buffer.read_u16()?);
         let _ = buffer.read_u16()?;
+
+        Ok(())
+    }
+
+    fn write(&self, buffer: &mut BytePacketBuffer) -> Result<()> {
+        buffer.write_query_name(&self.name)?;
+        let query_type = self.query_type.into();
+        buffer.write_u16(query_type)?;
+        buffer.write_u16(1)?;
 
         Ok(())
     }
@@ -306,6 +396,35 @@ impl DnsRecord {
             }
         }
     }
+
+    fn write(&self, buffer: &mut BytePacketBuffer) -> Result<usize> {
+        let start = buffer.position();
+
+        match *self {
+            DnsRecord::A {
+                ref domain,
+                ref address,
+                ttl,
+            } => {
+                buffer.write_query_name(domain)?;
+                buffer.write_u16(QueryType::A.into())?;
+                buffer.write_u16(1)?;
+                buffer.write_u32(ttl)?;
+                buffer.write_u16(4)?;
+
+                let octets = address.octets();
+                buffer.write_u8(octets[0])?;
+                buffer.write_u8(octets[1])?;
+                buffer.write_u8(octets[2])?;
+                buffer.write_u8(octets[3])?;
+            }
+            DnsRecord::UNKNOWN { .. } => {
+                println!("skipping record: {:?}", self);
+            }
+        }
+
+        Ok(buffer.position() - start)
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -356,14 +475,62 @@ impl DnsPacket {
 
         Ok(result)
     }
+
+    fn write(&mut self, buffer: &mut BytePacketBuffer) -> Result<()> {
+        self.header.questions = self.questions.len() as u16;
+        self.header.answers = self.answers.len() as u16;
+        self.header.authoritative_entries = self.authorities.len() as u16;
+        self.header.resource_entries = self.resources.len() as u16;
+
+        self.header.write(buffer)?;
+
+        for question in &self.questions {
+            question.write(buffer)?;
+        }
+
+        for record in &self.answers {
+            record.write(buffer)?;
+        }
+
+        for record in &self.authorities {
+            record.write(buffer)?;
+        }
+
+        for record in &self.resources {
+            record.write(buffer)?;
+        }
+
+        Ok(())
+    }
 }
 
 fn main() -> Result<()> {
-    let mut file = File::open("response_packet.txt")?;
-    let mut buffer = BytePacketBuffer::new();
-    file.read(&mut buffer.buffer)?;
+    let query_name = "google.com";
+    let query_type = QueryType::A;
 
-    let packet = DnsPacket::from_buffer(&mut buffer)?;
+    let server = ("8.8.8.8", 53);
+
+    let socket = UdpSocket::bind(("0.0.0.0", 43210))?;
+
+    let mut packet = DnsPacket::new();
+
+    packet.header.id = 6666;
+    packet.header.questions = 1;
+    packet.header.recursion_desired = true;
+    packet
+        .questions
+        .push(DnsQuestion::new(query_name.to_string(), query_type));
+
+    let mut request = BytePacketBuffer::new();
+
+    packet.write(&mut request)?;
+
+    socket.send_to(&request.buffer[0..request.position], server)?;
+
+    let mut response = BytePacketBuffer::new();
+    socket.recv_from(&mut response.buffer)?;
+
+    let packet = DnsPacket::from_buffer(&mut response)?;
 
     println!("{:#?}", packet.header);
 
