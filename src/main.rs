@@ -29,8 +29,8 @@ impl BytePacketBuffer {
         Ok(())
     }
 
-    fn seek(&mut self, pos: usize) -> Result<()> {
-        self.position = pos;
+    fn seek(&mut self, position: usize) -> Result<()> {
+        self.position = position;
         Ok(())
     }
 
@@ -79,14 +79,14 @@ impl BytePacketBuffer {
         let mut position = self.position();
 
         let mut jumped = false;
-        let mut jumps_performed = 0;
-        let max_jumps = 5;
+        let mut jumped_cnt = 0;
+        let max_jumped_cnt = 5;
 
         let mut delimiter = "";
 
         loop {
-            if jumps_performed > max_jumps {
-                return Err(format!("limit of {} jumps exceeded", max_jumps).into());
+            if jumped_cnt > max_jumped_cnt {
+                return Err(format!("limit of {} jumps exceeded", max_jumped_cnt).into());
             }
 
             let len = self.get(position)?;
@@ -101,7 +101,7 @@ impl BytePacketBuffer {
                 position = offset as usize;
 
                 jumped = true;
-                jumps_performed += 1;
+                jumped_cnt += 1;
             } else {
                 position += 1;
 
@@ -273,16 +273,15 @@ impl DnsRecord {
 
         buffer.read_query_name(&mut domain)?;
 
-        let query_type_num = buffer.read_u16()?;
-        let query_type = QueryType::from(query_type_num);
+        let query_type = buffer.read_u16()?;
         let _ = buffer.read_u16()?;
         let ttl = buffer.read_u32()?;
         let data_len = buffer.read_u16()?;
 
-        match query_type {
+        match QueryType::from(query_type) {
             QueryType::A => {
                 let raw_address = buffer.read_u32()?;
-                let address = std::net::Ipv4Addr::new(
+                let address = Ipv4Addr::new(
                     ((raw_address >> 24) & 0xFF) as u8,
                     ((raw_address >> 16) & 0xFF) as u8,
                     ((raw_address >> 8) & 0xFF) as u8,
@@ -300,7 +299,7 @@ impl DnsRecord {
 
                 Ok(DnsRecord::UNKNOWN {
                     domain,
-                    query_type: query_type_num,
+                    query_type,
                     data_len,
                     ttl,
                 })
