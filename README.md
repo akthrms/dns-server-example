@@ -13,7 +13,7 @@ DnsHeader {
     response: true,
     result_code: NOERROR,
     checking_disabled: false,
-    authed_data: false,
+    authenticated_data: false,
     z: false,
     recursion_available: true,
     questions: 1,
