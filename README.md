@@ -9,7 +9,7 @@ DnsHeader {
     recursion_desired: true,
     truncated_message: false,
     authoritative_answer: false,
-    op_code: 0,
+    operation_code: 0,
     response: true,
     result_code: NOERROR,
     checking_disabled: false,

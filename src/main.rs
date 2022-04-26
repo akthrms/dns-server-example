@@ -1,3 +1,5 @@
+use std::convert::From;
+use std::net::Ipv4Addr;
 use std::{fs::File, io::Read};
 
 type Error = Box<dyn std::error::Error>;
@@ -5,48 +7,48 @@ type Error = Box<dyn std::error::Error>;
 type Result<T> = std::result::Result<T, Error>;
 
 struct BytePacketBuffer {
-    buf: [u8; 512],
-    pos: usize,
+    buffer: [u8; 512],
+    position: usize,
 }
 
 impl BytePacketBuffer {
     fn new() -> Self {
         Self {
-            buf: [0; 512],
-            pos: 0,
+            buffer: [0; 512],
+            position: 0,
         }
     }
 
-    fn pos(&self) -> usize {
-        self.pos
+    fn position(&self) -> usize {
+        self.position
     }
 
     fn step(&mut self, steps: usize) -> Result<()> {
-        self.pos += steps;
+        self.position += steps;
         Ok(())
     }
 
     fn seek(&mut self, pos: usize) -> Result<()> {
-        self.pos = pos;
+        self.position = pos;
         Ok(())
     }
 
     fn read(&mut self) -> Result<u8> {
-        if self.pos >= 512 {
+        if self.position >= 512 {
             return Err("end of buffer".into());
         }
 
-        let result = self.buf[self.pos];
-        self.pos += 1;
+        let result = self.buffer[self.position];
+        self.position += 1;
         Ok(result)
     }
 
-    fn get(&self, pos: usize) -> Result<u8> {
-        if pos >= 512 {
+    fn get(&self, position: usize) -> Result<u8> {
+        if position >= 512 {
             return Err("end of buffer".into());
         }
 
-        let result = self.buf[pos];
+        let result = self.buffer[position];
         Ok(result)
     }
 
@@ -55,7 +57,7 @@ impl BytePacketBuffer {
             return Err("end of buffer".into());
         }
 
-        let result = &self.buf[start..len + start];
+        let result = &self.buffer[start..len + start];
         Ok(result)
     }
 
@@ -72,53 +74,53 @@ impl BytePacketBuffer {
         Ok(result)
     }
 
-    fn read_qname(&mut self, out: &mut String) -> Result<()> {
-        let mut pos = self.pos();
+    fn read_query_name(&mut self, out: &mut String) -> Result<()> {
+        let mut position = self.position();
 
         let mut jumped = false;
-        let max_jumps = 5;
         let mut jumps_performed = 0;
+        let max_jumps = 5;
 
-        let mut delim = "";
+        let mut delimiter = "";
 
         loop {
             if jumps_performed > max_jumps {
                 return Err(format!("limit of {} jumps exceeded", max_jumps).into());
             }
 
-            let len = self.get(pos)?;
+            let len = self.get(position)?;
 
             if (len & 0xC0) == 0xC0 {
                 if !jumped {
-                    self.seek(pos + 2)?;
+                    self.seek(position + 2)?;
                 }
 
-                let b2 = self.get(pos + 1)? as u16;
+                let b2 = self.get(position + 1)? as u16;
                 let offset = ((len as u16) ^ 0xC0) << 8 | b2;
-                pos = offset as usize;
+                position = offset as usize;
 
                 jumped = true;
                 jumps_performed += 1;
             } else {
-                pos += 1;
+                position += 1;
 
                 if len == 0 {
                     break;
                 }
 
-                out.push_str(delim);
+                out.push_str(delimiter);
 
-                let buffer = self.get_range(pos, len as usize)?;
+                let buffer = self.get_range(position, len as usize)?;
                 out.push_str(&String::from_utf8_lossy(buffer).to_lowercase());
 
-                delim = ".";
+                delimiter = ".";
 
-                pos += len as usize;
+                position += len as usize;
             }
         }
 
         if !jumped {
-            self.seek(pos)?;
+            self.seek(position)?;
         }
 
         Ok(())
@@ -127,15 +129,15 @@ impl BytePacketBuffer {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ResultCode {
-    NOERROR = 0,
-    FORMERR = 1,
-    SERVFAIL = 2,
-    NXDOMAIN = 3,
-    NOTIMP = 4,
-    REFUSED = 5,
+    NOERROR,
+    FORMERR,
+    SERVFAIL,
+    NXDOMAIN,
+    NOTIMP,
+    REFUSED,
 }
 
-impl std::convert::From<u8> for ResultCode {
+impl From<u8> for ResultCode {
     fn from(num: u8) -> Self {
         match num {
             1 => ResultCode::FORMERR,
@@ -154,7 +156,7 @@ struct DnsHeader {
     recursion_desired: bool,
     truncated_message: bool,
     authoritative_answer: bool,
-    op_code: u8,
+    operation_code: u8,
     response: bool,
     result_code: ResultCode,
     checking_disabled: bool,
@@ -174,7 +176,7 @@ impl DnsHeader {
             recursion_desired: false,
             truncated_message: false,
             authoritative_answer: false,
-            op_code: 0,
+            operation_code: 0,
             response: false,
             result_code: ResultCode::NOERROR,
             checking_disabled: false,
@@ -194,18 +196,17 @@ impl DnsHeader {
         let flags = buffer.read_u16()?;
         let a = (flags >> 8) as u8;
         let b = (flags & 0xFF) as u8;
+
         self.recursion_desired = (a & (1 << 0)) > 0;
         self.truncated_message = (a & (1 << 1)) > 0;
         self.authoritative_answer = (a & (1 << 2)) > 0;
-        self.op_code = (a >> 3) & 0x0F;
+        self.operation_code = (a >> 3) & 0x0F;
         self.response = (a & (1 << 7)) > 0;
-
         self.result_code = ResultCode::from(b & 0x0F);
         self.checking_disabled = (b & (1 << 4)) > 0;
         self.authed_data = (b & (1 << 5)) > 0;
         self.z = (b & (1 << 6)) > 0;
         self.recursion_available = (b & (1 << 7)) > 0;
-
         self.questions = buffer.read_u16()?;
         self.answers = buffer.read_u16()?;
         self.authoritative_entries = buffer.read_u16()?;
@@ -221,7 +222,7 @@ enum QueryType {
     A,
 }
 
-impl std::convert::From<u16> for QueryType {
+impl From<u16> for QueryType {
     fn from(num: u16) -> Self {
         match num {
             1 => QueryType::A,
@@ -242,7 +243,7 @@ impl DnsQuestion {
     }
 
     fn read(&mut self, buffer: &mut BytePacketBuffer) -> Result<()> {
-        buffer.read_qname(&mut self.name)?;
+        buffer.read_query_name(&mut self.name)?;
         self.query_type = QueryType::from(buffer.read_u16()?);
         let _ = buffer.read_u16()?;
 
@@ -260,7 +261,7 @@ enum DnsRecord {
     },
     A {
         domain: String,
-        address: std::net::Ipv4Addr,
+        address: Ipv4Addr,
         ttl: u32,
     },
 }
@@ -269,15 +270,15 @@ impl DnsRecord {
     fn read(buffer: &mut BytePacketBuffer) -> Result<Self> {
         let mut domain = String::new();
 
-        buffer.read_qname(&mut domain)?;
+        buffer.read_query_name(&mut domain)?;
 
-        let qname_num = buffer.read_u16()?;
-        let qtype = QueryType::from(qname_num);
+        let query_type_num = buffer.read_u16()?;
+        let query_type = QueryType::from(query_type_num);
         let _ = buffer.read_u16()?;
         let ttl = buffer.read_u32()?;
         let data_len = buffer.read_u16()?;
 
-        match qtype {
+        match query_type {
             QueryType::A => {
                 let raw_address = buffer.read_u32()?;
                 let address = std::net::Ipv4Addr::new(
@@ -298,7 +299,7 @@ impl DnsRecord {
 
                 Ok(DnsRecord::UNKNOWN {
                     domain,
-                    query_type: qname_num,
+                    query_type: query_type_num,
                     data_len,
                     ttl,
                 })
@@ -329,6 +330,7 @@ impl DnsPacket {
 
     fn from_buffer(buffer: &mut BytePacketBuffer) -> Result<Self> {
         let mut result = DnsPacket::new();
+
         result.header.read(buffer)?;
 
         for _ in 0..result.header.questions {
@@ -357,24 +359,25 @@ impl DnsPacket {
 }
 
 fn main() -> Result<()> {
-    let mut f = File::open("response_packet.txt")?;
+    let mut file = File::open("response_packet.txt")?;
     let mut buffer = BytePacketBuffer::new();
-    f.read(&mut buffer.buf)?;
+    file.read(&mut buffer.buffer)?;
 
     let packet = DnsPacket::from_buffer(&mut buffer)?;
+
     println!("{:#?}", packet.header);
 
-    for q in packet.questions {
-        println!("{:#?}", q);
+    for question in packet.questions {
+        println!("{:#?}", question);
     }
-    for rec in packet.answers {
-        println!("{:#?}", rec);
+    for record in packet.answers {
+        println!("{:#?}", record);
     }
-    for rec in packet.authorities {
-        println!("{:#?}", rec);
+    for record in packet.authorities {
+        println!("{:#?}", record);
     }
-    for rec in packet.resources {
-        println!("{:#?}", rec);
+    for record in packet.resources {
+        println!("{:#?}", record);
     }
 
     Ok(())
