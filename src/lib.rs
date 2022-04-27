@@ -6,12 +6,11 @@ use crate::dns::{DnsPacket, DnsQuestion, QueryType, ResultCode};
 use crate::packet::BytePacketBuffer;
 use crate::utils::Result as DnsResult;
 
-use std::net::UdpSocket;
+use std::net::{Ipv4Addr, UdpSocket};
 
 pub type Result<T> = DnsResult<T>;
 
-fn lookup(query_name: &str, query_type: QueryType) -> Result<DnsPacket> {
-    let google_public_dns = ("8.8.8.8", 53);
+fn lookup(query_name: &str, query_type: QueryType, server: (Ipv4Addr, u16)) -> Result<DnsPacket> {
     let socket = UdpSocket::bind(("0.0.0.0", 43210))?;
 
     let mut packet = DnsPacket::new();
@@ -23,12 +22,54 @@ fn lookup(query_name: &str, query_type: QueryType) -> Result<DnsPacket> {
 
     let mut request = BytePacketBuffer::new();
     packet.write(&mut request)?;
-    socket.send_to(&request.buffer[0..request.position], google_public_dns)?;
+    socket.send_to(&request.buffer[0..request.position], server)?;
 
     let mut response = BytePacketBuffer::new();
     socket.recv_from(&mut response.buffer)?;
 
     DnsPacket::from_buffer(&mut response)
+}
+
+fn recursive_lookup(query_name: &str, query_type: QueryType) -> Result<DnsPacket> {
+    let mut ns = "198.41.0.4".parse::<Ipv4Addr>()?;
+
+    loop {
+        println!(
+            "Attempting lookup of {:?} {} with ns {}",
+            query_type, query_name, ns
+        );
+
+        let ns_copy = ns;
+
+        let server = (ns_copy, 53);
+        let response = lookup(query_name, query_type, server)?;
+
+        if !response.answers.is_empty() && response.header.result_code == ResultCode::NOERROR {
+            return Ok(response);
+        }
+
+        if response.header.result_code == ResultCode::NXDOMAIN {
+            return Ok(response);
+        }
+
+        if let Some(new_ns) = response.get_resolved_ns(query_name) {
+            ns = new_ns;
+            continue;
+        }
+
+        let new_ns_name = match response.get_unresolved_ns(query_name) {
+            Some(ns_name) => ns_name,
+            _ => return Ok(response),
+        };
+
+        let recursive_response = recursive_lookup(&new_ns_name, QueryType::A)?;
+
+        if let Some(new_ns) = recursive_response.get_random_a() {
+            ns = new_ns;
+        } else {
+            return Ok(response);
+        }
+    }
 }
 
 pub fn handle_query(socket: &UdpSocket) -> Result<()> {
@@ -45,8 +86,8 @@ pub fn handle_query(socket: &UdpSocket) -> Result<()> {
     if let Some(question) = request.questions.pop() {
         println!("Received query: {:?}", question);
 
-        if let Ok(result) = lookup(&question.name, question.query_type) {
-            packet.questions.push(question);
+        if let Ok(result) = recursive_lookup(&question.name, question.query_type) {
+            packet.questions.push(question.clone());
             packet.header.result_code = result.header.result_code;
 
             for answer in result.answers {

@@ -494,4 +494,41 @@ impl DnsPacket {
 
         Ok(())
     }
+
+    pub fn get_random_a(&self) -> Option<Ipv4Addr> {
+        self.answers.iter().find_map(|answer| match answer {
+            DnsRecord::A { address, .. } => Some(*address),
+            _ => None,
+        })
+    }
+
+    pub fn get_ns<'a>(&'a self, query_name: &'a str) -> impl Iterator<Item = (&'a str, &'a str)> {
+        self.authorities
+            .iter()
+            .filter_map(|authority| match authority {
+                DnsRecord::NS { domain, host, .. } => Some((domain.as_str(), host.as_str())),
+                _ => None,
+            })
+            .filter(|(domain, _)| query_name.ends_with(*domain))
+    }
+
+    pub fn get_resolved_ns(&self, query_name: &str) -> Option<Ipv4Addr> {
+        self.get_ns(query_name)
+            .flat_map(|(_, host)| {
+                self.resources
+                    .iter()
+                    .filter_map(move |resource| match resource {
+                        DnsRecord::A {
+                            domain, address, ..
+                        } if domain == host => Some(address),
+                        _ => None,
+                    })
+            })
+            .map(|address| *address)
+            .next()
+    }
+
+    pub fn get_unresolved_ns<'a>(&'a self, query_name: &'a str) -> Option<&'a str> {
+        self.get_ns(query_name).map(|(_, host)| host).next()
+    }
 }
