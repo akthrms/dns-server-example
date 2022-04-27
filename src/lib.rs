@@ -72,11 +72,9 @@ pub fn handle_query(socket: &UdpSocket) -> Result<()> {
 
     let mut response = BytePacketBuffer::new();
     packet.write(&mut response)?;
-
     let len = response.position;
-    let data = response.get_range(0, len)?;
-
-    socket.send_to(data, src)?;
+    let response = response.get_range(0, len)?;
+    socket.send_to(response, src)?;
 
     Ok(())
 }
