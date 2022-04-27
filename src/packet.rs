@@ -29,7 +29,7 @@ impl BytePacketBuffer {
 
     fn read(&mut self) -> Result<u8> {
         if self.position >= LIMIT_OF_BUFFER {
-            return Err("End of buffer".into());
+            return Err("end buffer".into());
         }
 
         let result = self.buffer[self.position];
@@ -40,7 +40,7 @@ impl BytePacketBuffer {
 
     fn get(&self, position: usize) -> Result<u8> {
         if position >= LIMIT_OF_BUFFER {
-            return Err("End of buffer".into());
+            return Err("end of buffer".into());
         }
 
         let result = self.buffer[position];
@@ -50,7 +50,7 @@ impl BytePacketBuffer {
 
     pub fn get_range(&self, start: usize, len: usize) -> Result<&[u8]> {
         if start + len >= LIMIT_OF_BUFFER {
-            return Err("End of buffer".into());
+            return Err("end of buffer".into());
         }
 
         let result = &self.buffer[start..len + start];
@@ -84,7 +84,7 @@ impl BytePacketBuffer {
 
         loop {
             if jumped_cnt > max_jumped_cnt {
-                return Err(format!("Limit of {} jumps exceeded", max_jumped_cnt).into());
+                return Err(format!("limit of {} jumps exceeded", max_jumped_cnt).into());
             }
 
             let len = self.get(position)?;

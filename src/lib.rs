@@ -33,9 +33,11 @@ fn lookup(query_name: &str, query_type: QueryType, server: (Ipv4Addr, u16)) -> R
 fn recursive_lookup(query_name: &str, query_type: QueryType) -> Result<DnsPacket> {
     let mut ns = "198.41.0.4".parse::<Ipv4Addr>()?;
 
+    println!("\nlookup:\n");
+
     loop {
         println!(
-            "Attempting lookup of {:?} {} with ns {}",
+            "attempting lookup of {:?} {} with ns {}",
             query_type, query_name, ns
         );
 
@@ -84,24 +86,36 @@ pub fn handle_query(socket: &UdpSocket) -> Result<()> {
     packet.header.response = true;
 
     if let Some(question) = request.questions.pop() {
-        println!("Received query: {:?}", question);
+        println!("\nreceived query:\n\n{:?}", question);
 
         if let Ok(result) = recursive_lookup(&question.name, question.query_type) {
             packet.questions.push(question.clone());
             packet.header.result_code = result.header.result_code;
 
+            if !result.answers.is_empty() {
+                println!("\nanswer:\n");
+            }
+
             for answer in result.answers {
-                println!("Answer: {:?}", answer);
+                println!("{:?}", answer);
                 packet.answers.push(answer);
             }
 
+            if !result.authorities.is_empty() {
+                println!("\nauthorities:\n");
+            }
+
             for authority in result.authorities {
-                println!("Authority: {:?}", authority);
+                println!("{:?}", authority);
                 packet.authorities.push(authority);
             }
 
+            if !result.resources.is_empty() {
+                println!("\resources:\n");
+            }
+
             for resource in result.resources {
-                println!("Resource: {:?}", resource);
+                println!("{:?}", resource);
                 packet.resources.push(resource);
             }
         } else {

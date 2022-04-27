@@ -13,7 +13,7 @@ fn main() -> Result<()> {
 
     loop {
         if let Err(e) = handle_query(&socket) {
-            eprintln!("An error occurred: {}", e)
+            eprintln!("an error occurred: {}", e)
         }
     }
 }
