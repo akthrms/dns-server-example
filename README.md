@@ -1,4 +1,4 @@
-# DNS Server Sample
+# DNSサーバーを作ろう！
 
 [Building a DNS Server in Rust](https://github.com/EmilHernvall/dnsguide)
 
