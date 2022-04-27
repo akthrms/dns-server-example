@@ -73,7 +73,7 @@ impl BytePacketBuffer {
         Ok(result)
     }
 
-    pub fn read_query_name(&mut self, out: &mut String) -> Result<()> {
+    pub fn read_qname(&mut self, out: &mut String) -> Result<()> {
         let mut position = self.position;
 
         let mut jumped = false;
@@ -157,7 +157,7 @@ impl BytePacketBuffer {
         Ok(())
     }
 
-    pub fn write_query_name(&mut self, query_name: &str) -> Result<()> {
+    pub fn write_qname(&mut self, query_name: &str) -> Result<()> {
         for label in query_name.split(".") {
             let len = label.len();
 

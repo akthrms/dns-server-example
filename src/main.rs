@@ -1,19 +1,18 @@
 use dns_server_example::{handle_query, Result};
+use log::{debug, error};
 use std::net::UdpSocket;
 
 fn main() -> Result<()> {
-    let host = "0.0.0.0";
-    let port = 2053;
+    env_logger::init();
 
-    let socket = UdpSocket::bind((host, port))?;
-    println!(
-        "🚀 DNS cache server started [host: {}, port: {}]",
-        host, port
-    );
+    let server = ("0.0.0.0", 2053);
+    let socket = UdpSocket::bind(server)?;
+
+    debug!("DNS cache server started at {:?}", server);
 
     loop {
         if let Err(e) = handle_query(&socket) {
-            eprintln!("an error occurred: {}", e)
+            error!("an error occurred: {}", e);
         }
     }
 }
