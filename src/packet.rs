@@ -43,9 +43,7 @@ impl BytePacketBuffer {
             return Err("end of buffer".into());
         }
 
-        let result = self.buffer[position];
-
-        Ok(result)
+        Ok(self.buffer[position])
     }
 
     pub fn get_range(&self, start: usize, len: usize) -> Result<&[u8]> {
@@ -53,24 +51,18 @@ impl BytePacketBuffer {
             return Err("end of buffer".into());
         }
 
-        let result = &self.buffer[start..len + start];
-
-        Ok(result)
+        Ok(&self.buffer[start..len + start])
     }
 
     pub fn read_u16(&mut self) -> Result<u16> {
-        let result = (self.read()? as u16) << 8 | (self.read()? as u16) << 0;
-
-        Ok(result)
+        Ok((self.read()? as u16) << 8 | (self.read()? as u16) << 0)
     }
 
     pub fn read_u32(&mut self) -> Result<u32> {
-        let result = (self.read()? as u32) << 24
+        Ok((self.read()? as u32) << 24
             | (self.read()? as u32) << 16
             | (self.read()? as u32) << 8
-            | (self.read()? as u32) << 0;
-
-        Ok(result)
+            | (self.read()? as u32) << 0)
     }
 
     pub fn read_qname(&mut self, out: &mut String) -> Result<()> {

@@ -142,11 +142,17 @@ impl Header {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum QueryType {
+    /// 1 a host address
     A,
+    /// 2 an authoritative name server
     NS,
+    /// 5 the canonical name for an alias
     CNAME,
+    /// 15 mail exchange
     MX,
+    /// 28 a host address (IPv6 address)
     AAAA,
+    /// unknown
     UNKNOWN(u16),
 }
 
@@ -207,32 +213,38 @@ impl Question {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Record {
+    /// a host address
     A {
         domain: String,
         address: Ipv4Addr,
         ttl: u32,
     },
+    /// an authoritative name server
     NS {
         domain: String,
         host: String,
         ttl: u32,
     },
+    /// the canonical name for an alias
     CNAME {
         domain: String,
         host: String,
         ttl: u32,
     },
+    /// mail exchange
     MX {
         domain: String,
         priority: u16,
         host: String,
         ttl: u32,
     },
+    /// a host address (IPv6 address)
     AAAA {
         domain: String,
         address: Ipv6Addr,
         ttl: u32,
     },
+    /// unknown
     UNKNOWN {
         domain: String,
         qtype: u16,
