@@ -350,8 +350,8 @@ impl DnsRecord {
                 buffer.write_u32(ttl)?;
 
                 let position = buffer.position;
-                buffer.write_u16(0)?;
 
+                buffer.write_u16(0)?;
                 buffer.write_query_name(host)?;
 
                 let size = buffer.position - (position + 2);
@@ -368,8 +368,8 @@ impl DnsRecord {
                 buffer.write_u32(ttl)?;
 
                 let position = buffer.position;
-                buffer.write_u16(0)?;
 
+                buffer.write_u16(0)?;
                 buffer.write_query_name(host)?;
 
                 let size = buffer.position - (position + 2);
@@ -387,8 +387,8 @@ impl DnsRecord {
                 buffer.write_u32(ttl)?;
 
                 let position = buffer.position;
-                buffer.write_u16(0)?;
 
+                buffer.write_u16(0)?;
                 buffer.write_u16(priority)?;
                 buffer.write_query_name(host)?;
 
